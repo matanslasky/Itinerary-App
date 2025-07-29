@@ -14,10 +14,20 @@
         .leaflet-popup-content h3 { margin: 0 0 5px; font-weight: bold; }
         .leaflet-container { font-family: 'Inter', sans-serif; }
         .highlight { background-color: #fef9c3; border-left: 4px solid #f59e0b; }
+        .day-details-panel {
+            transition: max-height 0.5s ease-out, opacity 0.5s ease-out;
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+        }
+        .day-details-panel.active {
+            max-height: 1000px; /* Sufficiently large to show content */
+            opacity: 1;
+        }
     </style>
     <!-- Chosen Palette: "Tropical Serenity" - A mix of calming sea blues, lush jungle greens, and warm sandy beige. -->
-    <!-- Application Structure Plan: A responsive, two-panel layout. On the left (or top on mobile), a dynamic itinerary allows users to view and edit daily plans. On the right (or bottom), an interactive Leaflet map visualizes the journey. This dual-view provides immediate geographic context to the schedule. Clicking an itinerary item pans the map to the location, and clicking a map marker highlights the corresponding itinerary days. This interconnected design makes planning intuitive and engaging. The ability to edit details directly addresses the user's request for a flexible tool. -->
-    <!-- Visualization & Content Choices: The core visualization is a Leaflet.js map, chosen for its performance and ease of use. It displays locations as markers. The itinerary is a structured HTML list, dynamically generated from a JavaScript data object. This data-driven approach allows for easy updates when the user edits an entry. The interaction model is simple: click-to-focus. This avoids complexity while providing a powerful way to connect the schedule with the geography. -->
+    <!-- Application Structure Plan: A responsive, two-panel layout. On the left (or top on mobile), the main itinerary list displays daily summaries. Clicking a day expands a nested detail section to reveal specific events (places, times, activities) for that day. On the right (or bottom), an interactive Leaflet map dynamically visualizes either all main itinerary locations (default) or the detailed events of a selected day. This hierarchical structure allows users to progressively explore information. Edit and remove functionalities are available for both main days and individual events. A global "Add New Item" button creates new days, while an "Add Event" button within the daily detail view allows adding sub-events. This design prioritizes user understanding and ease of navigation by providing contextual information and granular control. -->
+    <!-- Visualization & Content Choices: The core visualization remains a Leaflet.js map, now dynamically updating its markers based on the selected itinerary view (main days vs. specific day's events). Itinerary data is structured hierarchically in JavaScript objects to support nested events. HTML lists are used for both main itinerary days and the detailed event lists. Vanilla JavaScript handles all interactions: expanding/collapsing daily details, opening/closing modals, and dynamically updating both textual content and map markers. Custom modals are used for confirmations and form inputs to maintain a consistent UI/UX. The interaction model is click-to-drill-down, providing a clear path for information exploration. -->
     <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -46,7 +56,7 @@
 
     <!-- Add New Item Button -->
     <button id="add-item-btn" class="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full shadow-lg z-[9998]">
-        + Add New Item
+        + Add New Day
     </button>
 
     <!-- Modal for Editing/Adding -->
@@ -61,17 +71,32 @@
                             <input type="text" id="new-day" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2">
                         </div>
                         <div class="text-left">
-                            <label for="new-location" class="text-sm font-medium text-gray-700">Location:</label>
+                            <label for="new-location" class="text-sm font-medium text-gray-700">Main Location (e.g., Hanoi):</label>
                             <input type="text" id="new-location" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2">
+                        </div>
+                        <div class="text-left">
+                            <label for="new-summary-activity" class="text-sm font-medium text-gray-700">Summary Activity:</label>
+                            <input type="text" id="new-summary-activity" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2">
+                        </div>
+                    </div>
+                    <!-- Fields for editing/adding individual events -->
+                    <div id="event-fields" class="space-y-4 mb-4 hidden">
+                        <div class="text-left">
+                            <label for="event-time" class="text-sm font-medium text-gray-700">Time (e.g., 13:15):</label>
+                            <input type="text" id="event-time" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2">
+                        </div>
+                        <div class="text-left">
+                            <label for="event-place" class="text-sm font-medium text-gray-700">Place:</label>
+                            <input type="text" id="event-place" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2">
                         </div>
                         <div class="flex gap-4">
                             <div class="text-left w-1/2">
-                                <label for="new-latitude" class="text-sm font-medium text-gray-700">Latitude:</label>
-                                <input type="number" step="any" id="new-latitude" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2">
+                                <label for="event-latitude" class="text-sm font-medium text-gray-700">Latitude:</label>
+                                <input type="number" step="any" id="event-latitude" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2">
                             </div>
                             <div class="text-left w-1/2">
-                                <label for="new-longitude" class="text-sm font-medium text-gray-700">Longitude:</label>
-                                <input type="number" step="any" id="new-longitude" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2">
+                                <label for="event-longitude" class="text-sm font-medium text-gray-700">Longitude:</label>
+                                <input type="number" step="any" id="event-longitude" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 p-2">
                             </div>
                         </div>
                     </div>
@@ -99,30 +124,97 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const itineraryData = [
-                { day: "Aug 20", location: "En Route", coords: [21.0285, 105.8542], activity: "Depart from Israel", notes: "Morning flight at 11:00 AM. Layover in Dubai." },
-                { day: "Aug 21", location: "Hanoi", coords: [21.0285, 105.8542], activity: "Arrive in Hanoi", notes: "Land in Hanoi at 13:15. Take taxi to hotel near Chabad House. Settle in and explore the Old Quarter." },
-                { day: "Aug 22", location: "Hanoi", coords: [21.0285, 105.8542], activity: "Hanoi Exploration", notes: "Visit Hoan Kiem Lake, Ngoc Son Temple, and Temple of Literature. Water puppet show in the evening." },
-                { day: "Aug 23", location: "Hanoi", coords: [21.0285, 105.8542], activity: "Hanoi & Shabbat Prep", notes: "Visit Ho Chi Minh Mausoleum Complex. Prepare for Shabbat. Dinner at Chabad House." },
-                { day: "Aug 24", location: "Hanoi", coords: [21.0285, 105.8542], activity: "Shabbat in Hanoi / Train to Sapa", notes: "Shabbat at Chabad House. Board overnight train to Lao Cai (Sapa) in the evening." },
-                { day: "Aug 25", location: "Sapa", coords: [22.3365, 103.8439], activity: "Arrival & Exploration in Sapa", notes: "Arrive in Lao Cai, transfer to Sapa. Light trek to Cat Cat village. Rely on pre-packed kosher food." },
-                { day: "Aug 26", location: "Sapa", coords: [22.3365, 103.8439], activity: "Sapa Trekking / Train to Hanoi", notes: "Trek to Ta Van or Lao Chai villages. Board overnight train back to Hanoi." },
-                { day: "Aug 27", location: "Ha Long Bay", coords: [20.9101, 107.0759], activity: "Day Trip to Ha Long Bay", notes: "Full-day cruise through the limestone karsts. Return to Hanoi for sleep." },
-                { day: "Aug 28", location: "Ninh Binh", coords: [20.2528, 105.9738], activity: "Day Trip to Ninh Binh", notes: "Sampan boat ride in Tam Coc/Trang An. Climb Mua Cave viewpoint. Return to Hanoi for sleep." },
-                { day: "Aug 29", location: "Hanoi", coords: [21.0285, 105.8542], activity: "Free Day in Hanoi", notes: "Relax, shop for souvenirs, and prepare for the flight to Thailand." },
-                { day: "Aug 30", location: "Koh Samui", coords: [9.5357, 99.9357], activity: "Fly to Koh Samui, Thailand", notes: "Fly from Hanoi (HAN) to Koh Samui (USM). Check into hotel near Chabad House for Shabbat." },
-                { day: "Aug 31", location: "Koh Samui", coords: [9.5357, 99.9357], activity: "Shabbat in Koh Samui", notes: "Observe Shabbat at Chabad House. Relax on the beach." },
-                { day: "Sep 1-4", location: "Koh Samui", coords: [9.5357, 99.9357], activity: "Koh Samui Exploration", notes: "Visit Big Buddha, Wat Plai Laem, Na Muang Waterfalls. Enjoy beaches like Chaweng and Lamai." },
-                { day: "Sep 5", location: "Koh Phangan", coords: [9.7354, 100.0136], activity: "Ferry to Koh Phangan", notes: "Check into hotel near Chabad House. Explore the island." },
-                { day: "Sep 6", location: "Koh Phangan", coords: [9.7354, 100.0136], activity: "Koh Phangan & Shabbat Prep", notes: "Relax on the beach, prepare for Shabbat. Dinner at Chabad House." },
-                { day: "Sep 7", location: "Koh Phangan", coords: [9.7354, 100.0136], activity: "Shabbat in Koh Phangan", notes: "Observe Shabbat at Chabad House." },
-                { day: "Sep 8", location: "Koh Tao", coords: [10.0956, 99.8413], activity: "Ferry to Koh Tao", notes: "Check into hotel near Chabad House. Great for diving and snorkeling." },
-                { day: "Sep 9", location: "Koh Tao", coords: [10.0956, 99.8413], activity: "Koh Tao Activities", notes: "Diving, snorkeling, or hiking to a viewpoint." },
-                { day: "Sep 10", location: "Koh Samui", coords: [9.5357, 99.9357], activity: "Return to Koh Samui & Travel", notes: "Ferry back to Koh Samui. Fly to Bangkok in the afternoon/evening." },
-                { day: "Sep 11-13", location: "Bangkok", coords: [13.7563, 100.5018], activity: "Bangkok Exploration", notes: "Visit Grand Palace, Wat Pho, Wat Arun. Explore markets and malls. Many kosher options available." },
-                { day: "Sep 13", location: "Bangkok", coords: [13.7563, 100.5018], activity: "Bangkok & Shabbat Prep", notes: "Final sightseeing. Prepare for Shabbat. Dinner at Chabad House." },
-                { day: "Sep 14", location: "Bangkok", coords: [13.7563, 100.5018], activity: "Shabbat in Bangkok", notes: "Observe Shabbat at Chabad House." },
-                { day: "Sep 15-17", location: "Bangkok", coords: [13.7563, 100.5018], activity: "Bangkok Free Days", notes: "More exploration, day trips, or relaxation before your flight home." },
-                { day: "Sep 18", location: "Bangkok", coords: [13.7563, 100.5018], activity: "Departure", notes: "Fly from Bangkok (BKK) back to Israel." }
+                { day: "Aug 20", location: "En Route", summary_activity: "Depart from Israel", events: [
+                    { time: "11:00 AM", place: "Israel", coords: [31.0461, 34.8516], activity: "Depart from Israel", notes: "Morning flight. Layover in Dubai." }
+                ]},
+                { day: "Aug 21", location: "Hanoi", summary_activity: "Arrive & Settle In", events: [
+                    { time: "13:15", place: "Noi Bai International Airport (HAN)", coords: [21.2211, 105.8077], activity: "Land in Hanoi", notes: "Take taxi to hotel." },
+                    { time: "Afternoon", place: "Hotel near Chabad House", coords: [21.0315, 105.8500], activity: "Check into hotel", notes: "Settle in, explore immediate area." },
+                    { time: "Evening", place: "Old Quarter", coords: [21.0315, 105.8500], activity: "Explore Old Quarter", notes: "Dinner at Chabad or self-prepared." }
+                ]},
+                { day: "Aug 22", location: "Hanoi", summary_activity: "Hanoi Exploration", events: [
+                    { time: "Morning", place: "Hoan Kiem Lake & Ngoc Son Temple", coords: [21.0285, 105.8542], activity: "Explore Lake & Temple", notes: "" },
+                    { time: "Afternoon", place: "Temple of Literature", coords: [21.0285, 105.8350], activity: "Visit Temple of Literature", notes: "" },
+                    { time: "Evening", place: "Thang Long Water Puppet Theatre", coords: [21.0315, 105.8520], activity: "Water puppet show", notes: "Book in advance." }
+                ]},
+                { day: "Aug 23", location: "Hanoi", summary_activity: "Hanoi & Shabbat Prep", events: [
+                    { time: "Morning", place: "Ho Chi Minh Mausoleum Complex", coords: [21.0368, 105.8342], activity: "Visit Mausoleum Complex", notes: "Check opening hours." },
+                    { time: "Afternoon", place: "Hotel/Chabad House", coords: [21.0315, 105.8500], activity: "Prepare for Shabbat", notes: "Ensure kosher food and supplies." },
+                    { time: "Evening", place: "Chabad House of Hanoi", coords: [21.0315, 105.8500], activity: "Welcome Shabbat", notes: "Dinner at Chabad House." }
+                ]},
+                { day: "Aug 24", location: "Hanoi & Sapa", summary_activity: "Shabbat & Overnight Train", events: [
+                    { time: "Day", place: "Chabad House of Hanoi", coords: [21.0315, 105.8500], activity: "Observe Shabbat in Hanoi", notes: "Attend services and meals." },
+                    { time: "Evening", place: "Hanoi Railway Station", coords: [21.0210, 105.8390], activity: "Board overnight train to Lao Cai", notes: "Book private cabin. Pre-packed kosher meals." }
+                ]},
+                { day: "Aug 25", location: "Sapa", summary_activity: "Arrival & Exploration in Sapa", events: [
+                    { time: "Morning", place: "Lao Cai / Sapa Town", coords: [22.4833, 103.9667], activity: "Arrive in Lao Cai, transfer to Sapa", notes: "Check into hotel. Rely on pre-packed kosher food." },
+                    { time: "Afternoon", place: "Cat Cat Village", coords: [22.3667, 103.8167], activity: "Light trek to Cat Cat village", notes: "" }
+                ]},
+                { day: "Aug 26", location: "Sapa & Hanoi", summary_activity: "Sapa Trekking & Return to Hanoi", events: [
+                    { time: "Morning/Afternoon", place: "Ta Van / Lao Chai Villages", coords: [22.3000, 103.8667], activity: "Trek in Sapa villages", notes: "Consider local guide." },
+                    { time: "Late Afternoon", place: "Lao Cai Railway Station", coords: [22.4833, 103.9667], activity: "Board overnight train back to Hanoi", notes: "" }
+                ]},
+                { day: "Aug 27", location: "Ha Long Bay", summary_activity: "Day Trip to Ha Long Bay", events: [
+                    { time: "Full Day", place: "Ha Long Bay", coords: [20.9101, 107.0759], activity: "Full-day cruise through limestone karsts", notes: "Book reputable tour. Bring kosher lunch/snacks. Return to Hanoi for sleep." }
+                ]},
+                { day: "Aug 28", location: "Ninh Binh", summary_activity: "Day Trip to Ninh Binh", events: [
+                    { time: "Full Day", place: "Tam Coc / Trang An & Mua Cave", coords: [20.2528, 105.9738], activity: "Sampan boat ride & Mua Cave viewpoint", notes: "Arrange private car or tour. Return to Hanoi for sleep." }
+                ]},
+                { day: "Aug 29", location: "Hanoi", summary_activity: "Free Day & Departure Prep", events: [
+                    { time: "Day", place: "Hanoi", coords: [21.0285, 105.8542], activity: "Relax, souvenir shopping", notes: "Prepare for flight to Thailand." }
+                ]},
+                { day: "Aug 30", location: "Koh Samui", summary_activity: "Fly to Koh Samui, Thailand", events: [
+                    { time: "Morning", place: "Hanoi Airport (HAN)", coords: [21.2211, 105.8077], activity: "Depart Hanoi", notes: "" },
+                    { time: "Afternoon/Evening", place: "Koh Samui Airport (USM)", coords: [9.5467, 100.0633], activity: "Arrive Koh Samui", notes: "Check into hotel near Chabad House for Shabbat." }
+                ]},
+                { day: "Aug 31", location: "Koh Samui", summary_activity: "Shabbat in Koh Samui", events: [
+                    { time: "Day", place: "Chabad House of Koh Samui", coords: [9.5200, 100.0400], activity: "Observe Shabbat", notes: "Attend services and meals. Relax on beach." }
+                ]},
+                { day: "Sep 1-4", location: "Koh Samui", summary_activity: "Koh Samui Exploration", events: [
+                    { time: "Various", place: "Big Buddha Temple", coords: [9.5600, 100.0600], activity: "Visit Big Buddha", notes: "" },
+                    { time: "Various", place: "Wat Plai Laem", coords: [9.5550, 100.0550], activity: "Visit Wat Plai Laem", notes: "" },
+                    { time: "Various", place: "Chaweng Beach / Lamai Beach", coords: [9.5167, 100.0500], activity: "Enjoy beaches", notes: "" }
+                ]},
+                { day: "Sep 5", location: "Koh Phangan", summary_activity: "Ferry to Koh Phangan", events: [
+                    { time: "Morning", place: "Koh Samui Ferry Terminal", coords: [9.5467, 100.0633], activity: "Ferry to Koh Phangan", notes: "Check into hotel near Chabad House." },
+                    { time: "Afternoon", place: "Koh Phangan", coords: [9.7354, 100.0136], activity: "Explore the island", notes: "" }
+                ]},
+                { day: "Sep 6", location: "Koh Phangan", summary_activity: "Koh Phangan & Shabbat Prep", events: [
+                    { time: "Day", place: "Koh Phangan Beaches", coords: [9.7354, 100.0136], activity: "Relax on beaches", notes: "" },
+                    { time: "Evening", place: "Chabad House of Koh Phangan", coords: [9.7354, 100.0136], activity: "Prepare for Shabbat, Dinner at Chabad", notes: "" }
+                ]},
+                { day: "Sep 7", location: "Koh Phangan", summary_activity: "Shabbat in Koh Phangan", events: [
+                    { time: "Day", place: "Chabad House of Koh Phangan", coords: [9.7354, 100.0136], activity: "Observe Shabbat", notes: "Attend services and meals." }
+                ]},
+                { day: "Sep 8", location: "Koh Tao", summary_activity: "Ferry to Koh Tao", events: [
+                    { time: "Morning", place: "Koh Phangan Ferry Terminal", coords: [9.7354, 100.0136], activity: "Ferry to Koh Tao", notes: "Check into hotel near Chabad House." },
+                    { time: "Day", place: "Koh Tao", coords: [10.0956, 99.8413], activity: "Explore Koh Tao", notes: "Great for diving/snorkeling." }
+                ]},
+                { day: "Sep 9", location: "Koh Tao", summary_activity: "Koh Tao Activities", events: [
+                    { time: "Day", place: "Koh Tao Bays", coords: [10.0956, 99.8413], activity: "Diving, snorkeling, or hiking", notes: "" }
+                ]},
+                { day: "Sep 10", location: "Koh Samui & Bangkok", summary_activity: "Return & Travel to Bangkok", events: [
+                    { time: "Morning", place: "Koh Tao Ferry Terminal", coords: [10.0956, 99.8413], activity: "Ferry back to Koh Samui", notes: "" },
+                    { time: "Afternoon/Evening", place: "Koh Samui Airport (USM)", coords: [9.5467, 100.0633], activity: "Fly to Bangkok", notes: "" }
+                ]},
+                { day: "Sep 11-13", location: "Bangkok", summary_activity: "Bangkok Exploration", events: [
+                    { time: "Various", place: "Grand Palace & Wat Pho", coords: [13.7500, 100.4900], activity: "Visit Grand Palace & Wat Pho", notes: "" },
+                    { time: "Various", place: "Wat Arun", coords: [13.7500, 100.4800], activity: "Visit Wat Arun", notes: "" },
+                    { time: "Various", place: "Markets & Malls", coords: [13.7400, 100.5300], activity: "Explore markets and malls", notes: "Many kosher options available." }
+                ]},
+                { day: "Sep 13", location: "Bangkok", summary_activity: "Bangkok & Shabbat Prep", events: [
+                    { time: "Day", place: "Bangkok", coords: [13.7563, 100.5018], activity: "Final sightseeing/shopping", notes: "" },
+                    { time: "Evening", place: "Chabad House of Bangkok", coords: [13.7300, 100.5600], activity: "Prepare for Shabbat, Dinner at Chabad", notes: "" }
+                ]},
+                { day: "Sep 14", location: "Bangkok", summary_activity: "Shabbat in Bangkok", events: [
+                    { time: "Day", place: "Chabad House of Bangkok", coords: [13.7300, 100.5600], activity: "Observe Shabbat", notes: "Attend services and meals." }
+                ]},
+                { day: "Sep 15-17", location: "Bangkok", summary_activity: "Bangkok Free Days", events: [
+                    { time: "Various", place: "Bangkok", coords: [13.7563, 100.5018], activity: "More exploration or relaxation", notes: "Buffer days before flight home." }
+                ]},
+                { day: "Sep 18", location: "Bangkok", summary_activity: "Departure", events: [
+                    { time: "Day", place: "Suvarnabhumi Airport (BKK)", coords: [13.6899, 100.7501], activity: "Fly from Bangkok back to Israel", notes: "" }
+                ]}
             ];
 
             const map = L.map('map').setView([15, 105], 4);
@@ -138,92 +230,237 @@
             const notesInput = document.getElementById('edit-notes');
             const newDayInput = document.getElementById('new-day');
             const newLocationInput = document.getElementById('new-location');
-            const newLatitudeInput = document.getElementById('new-latitude');
-            const newLongitudeInput = document.getElementById('new-longitude');
+            const newSummaryActivityInput = document.getElementById('new-summary-activity');
             const newItemFields = document.getElementById('new-item-fields');
             const addItemBtn = document.getElementById('add-item-btn');
 
-            let currentEditIndex = -1; // -1 indicates "add new item" mode
+            const eventFields = document.getElementById('event-fields');
+            const eventTimeInput = document.getElementById('event-time');
+            const eventPlaceInput = document.getElementById('event-place');
+            const eventLatitudeInput = document.getElementById('event-latitude');
+            const eventLongitudeInput = document.getElementById('event-longitude');
+
+            let currentDayIndex = -1; // Index of the day being viewed/edited
+            let currentEventIndex = -1; // Index of the event within the day being edited (-1 for adding new event)
+            let isAddingNewDay = false; // Flag to distinguish adding a new day vs. adding/editing an event
 
             const markers = {};
-            const pathPoints = [];
 
             function renderItinerary() {
                 itineraryList.innerHTML = '';
-                itineraryData.forEach((item, index) => {
-                    const div = document.createElement('div');
-                    div.className = 'relative p-4 border rounded-lg cursor-pointer hover:bg-gray-100 transition-colors duration-200';
-                    div.id = `item-${index}`;
-                    div.innerHTML = `
+                itineraryData.forEach((dayItem, dayIndex) => {
+                    const dayDiv = document.createElement('div');
+                    dayDiv.className = 'relative p-4 border rounded-lg cursor-pointer hover:bg-gray-100 transition-colors duration-200';
+                    dayDiv.id = `day-item-${dayIndex}`;
+                    dayDiv.innerHTML = `
                         <div class="flex justify-between items-center">
                             <div>
-                                <p class="font-bold text-blue-600">${item.day}: ${item.location}</p>
-                                <p class="text-sm text-gray-700 mt-1">${item.activity}</p>
-                                <p class="text-xs text-gray-500 mt-1"><em>${item.notes}</em></p>
+                                <p class="font-bold text-blue-600">${dayItem.day}: ${dayItem.location}</p>
+                                <p class="text-sm text-gray-700 mt-1">${dayItem.summary_activity}</p>
                             </div>
-                            <button data-index="${index}" class="edit-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-2 rounded">Edit</button>
+                            <button data-index="${dayIndex}" class="edit-day-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-2 rounded">Edit Day</button>
                         </div>
-                        <span data-index="${index}" class="remove-x absolute top-2 right-2 text-red-500 cursor-pointer font-bold text-lg leading-none">&times;</span>
+                        <span data-index="${dayIndex}" class="remove-day-x absolute top-2 right-2 text-red-500 cursor-pointer font-bold text-lg leading-none">&times;</span>
+                        <div id="day-details-${dayIndex}" class="day-details-panel mt-4 space-y-2">
+                            <h4 class="font-semibold text-gray-700 text-left border-b pb-1">Daily Events:</h4>
+                            <div id="events-list-${dayIndex}" class="space-y-2"></div>
+                            <button data-day-index="${dayIndex}" class="add-event-btn mt-2 w-full bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 px-4 rounded-md shadow-sm">
+                                + Add Event
+                            </button>
+                        </div>
                     `;
-                    itineraryList.appendChild(div);
-                });
+                    itineraryList.appendChild(dayDiv);
 
-                document.querySelectorAll('.edit-btn').forEach(button => {
-                    button.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        openEditModal(parseInt(e.target.dataset.index, 10));
+                    renderDayEvents(dayIndex); // Render events for each day initially
+
+                    // Event listener for expanding/collapsing day details
+                    dayDiv.querySelector('div:first-child').addEventListener('click', (e) => {
+                        if (!e.target.closest('.edit-day-btn') && !e.target.closest('.remove-day-x')) {
+                            toggleDayDetails(dayIndex);
+                        }
                     });
                 });
 
-                document.querySelectorAll('.remove-x').forEach(span => {
+                document.querySelectorAll('.edit-day-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openEditDayModal(parseInt(e.target.dataset.index, 10));
+                    });
+                });
+
+                document.querySelectorAll('.remove-day-x').forEach(span => {
                     span.addEventListener('click', (e) => {
                         e.stopPropagation();
                         const indexToRemove = parseInt(e.target.dataset.index, 10);
-                        removeItineraryItem(indexToRemove);
+                        removeItineraryDay(indexToRemove);
                     });
                 });
 
-                document.querySelectorAll('#itinerary-list > div').forEach((div, index) => {
-                    div.addEventListener('click', () => {
-                        const item = itineraryData[index];
-                        map.flyTo(item.coords, 8);
-                        if (markers[item.location]) {
-                            markers[item.location].openPopup();
-                        }
-                        highlightItineraryItem(index);
+                document.querySelectorAll('.add-event-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        openAddEventModal(parseInt(e.target.dataset.dayIndex, 10));
                     });
                 });
+
+                // Initially render all main locations on the map
+                renderMap();
             }
 
-            function openEditModal(index) {
-                currentEditIndex = index;
-                const item = itineraryData[currentEditIndex];
-                document.getElementById('modal-title').innerText = `Edit: ${item.day} - ${item.location}`;
-                activityInput.value = item.activity;
-                notesInput.value = item.notes;
-                newItemFields.classList.add('hidden'); // Hide new item fields for editing
+            function renderDayEvents(dayIndex) {
+                const eventsListContainer = document.getElementById(`events-list-${dayIndex}`);
+                eventsListContainer.innerHTML = '';
+                const dayItem = itineraryData[dayIndex];
+                if (dayItem.events && dayItem.events.length > 0) {
+                    dayItem.events.forEach((event, eventIndex) => {
+                        const eventDiv = document.createElement('div');
+                        eventDiv.className = 'relative p-2 border border-gray-200 rounded-md bg-gray-50 text-left text-sm';
+                        eventDiv.innerHTML = `
+                            <p class="font-medium text-gray-800">${event.time}: ${event.place}</p>
+                            <p class="text-gray-600">${event.activity}</p>
+                            <p class="text-xs text-gray-500"><em>${event.notes}</em></p>
+                            <div class="absolute top-1 right-1 flex space-x-1">
+                                <button data-day-index="${dayIndex}" data-event-index="${eventIndex}" class="edit-event-btn text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-0.5 px-1.5 rounded">Edit</button>
+                                <span data-day-index="${dayIndex}" data-event-index="${eventIndex}" class="remove-event-x text-red-400 cursor-pointer font-bold text-base leading-none">&times;</span>
+                            </div>
+                        `;
+                        eventsListContainer.appendChild(eventDiv);
+                    });
+
+                    document.querySelectorAll(`#events-list-${dayIndex} .edit-event-btn`).forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            openEditEventModal(parseInt(e.target.dataset.dayIndex, 10), parseInt(e.target.dataset.eventIndex, 10));
+                        });
+                    });
+
+                    document.querySelectorAll(`#events-list-${dayIndex} .remove-event-x`).forEach(span => {
+                        span.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            removeItineraryEvent(parseInt(e.target.dataset.dayIndex, 10), parseInt(e.target.dataset.eventIndex, 10));
+                        });
+                    });
+                } else {
+                    eventsListContainer.innerHTML = '<p class="text-gray-500 text-sm">No specific events planned for this day yet.</p>';
+                }
+            }
+
+            function toggleDayDetails(dayIndex) {
+                const detailsPanel = document.getElementById(`day-details-${dayIndex}`);
+                const isActive = detailsPanel.classList.toggle('active');
+
+                if (isActive) {
+                    // When expanding, update map to show events for this day
+                    renderMap(dayIndex);
+                    // Scroll to the day item
+                    const dayItemEl = document.getElementById(`day-item-${dayIndex}`);
+                    if (dayItemEl) {
+                        dayItemEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                } else {
+                    // When collapsing, revert map to show all main locations
+                    renderMap();
+                }
+            }
+
+            function openEditDayModal(dayIndex) {
+                currentDayIndex = dayIndex;
+                currentEventIndex = -1; // Not editing an event
+                isAddingNewDay = false;
+
+                const dayItem = itineraryData[currentDayIndex];
+                document.getElementById('modal-title').innerText = `Edit Day: ${dayItem.day} - ${dayItem.location}`;
+
+                // Hide event-specific fields
+                eventFields.classList.add('hidden');
+                // Show new-item-fields (for day-level edits)
+                newItemFields.classList.remove('hidden');
+
+                newDayInput.value = dayItem.day;
+                newLocationInput.value = dayItem.location;
+                newSummaryActivityInput.value = dayItem.summary_activity;
+                activityInput.value = ''; // Not applicable for day-level activity
+                notesInput.value = ''; // Not applicable for day-level notes
+
                 modal.style.display = 'block';
             }
 
-            function openAddModal() {
-                currentEditIndex = -1; // Set to -1 for "add" mode
-                document.getElementById('modal-title').innerText = `Add New Itinerary Item`;
-                activityInput.value = '';
-                notesInput.value = '';
+            function openEditEventModal(dayIndex, eventIndex) {
+                currentDayIndex = dayIndex;
+                currentEventIndex = eventIndex;
+                isAddingNewDay = false;
+
+                const eventItem = itineraryData[currentDayIndex].events[currentEventIndex];
+                document.getElementById('modal-title').innerText = `Edit Event: ${itineraryData[currentDayIndex].day} - ${eventItem.place}`;
+
+                // Show event-specific fields
+                eventFields.classList.remove('hidden');
+                // Hide new-item-fields
+                newItemFields.classList.add('hidden');
+
+                eventTimeInput.value = eventItem.time;
+                eventPlaceInput.value = eventItem.place;
+                eventLatitudeInput.value = eventItem.coords[0];
+                eventLongitudeInput.value = eventItem.coords[1];
+                activityInput.value = eventItem.activity;
+                notesInput.value = eventItem.notes;
+
+                modal.style.display = 'block';
+            }
+
+            function openAddModal() { // For adding a new day
+                currentDayIndex = -1; // Indicates adding a new day
+                currentEventIndex = -1;
+                isAddingNewDay = true;
+
+                document.getElementById('modal-title').innerText = `Add New Itinerary Day`;
+
+                // Show new-item-fields (for day-level addition)
+                newItemFields.classList.remove('hidden');
+                // Hide event-specific fields
+                eventFields.classList.add('hidden');
+
                 newDayInput.value = '';
                 newLocationInput.value = '';
-                newLatitudeInput.value = '';
-                newLongitudeInput.value = '';
-                newItemFields.classList.remove('hidden'); // Show new item fields for adding
+                newSummaryActivityInput.value = '';
+                activityInput.value = '';
+                notesInput.value = '';
+                eventTimeInput.value = '';
+                eventPlaceInput.value = '';
+                eventLatitudeInput.value = '';
+                eventLongitudeInput.value = '';
+
                 modal.style.display = 'block';
             }
 
-            function removeItineraryItem(index) {
+            function openAddEventModal(dayIndex) {
+                currentDayIndex = dayIndex;
+                currentEventIndex = -1; // Indicates adding a new event to an existing day
+                isAddingNewDay = false;
+
+                document.getElementById('modal-title').innerText = `Add Event to ${itineraryData[currentDayIndex].day}`;
+
+                // Show event-specific fields
+                eventFields.classList.remove('hidden');
+                // Hide new-item-fields
+                newItemFields.classList.add('hidden');
+
+                eventTimeInput.value = '';
+                eventPlaceInput.value = '';
+                eventLatitudeInput.value = '';
+                eventLongitudeInput.value = '';
+                activityInput.value = '';
+                notesInput.value = '';
+
+                modal.style.display = 'block';
+            }
+
+            function removeItineraryDay(index) {
                 const confirmationModal = document.createElement('div');
                 confirmationModal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-[10000]';
                 confirmationModal.innerHTML = `
                     <div class="bg-white p-6 rounded-lg shadow-xl text-center">
-                        <p class="text-lg font-semibold mb-4">Are you sure you want to remove this itinerary item?</p>
+                        <p class="text-lg font-semibold mb-4">Are you sure you want to remove this entire day from the itinerary?</p>
                         <div class="flex justify-center space-x-4">
                             <button id="confirm-remove" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Yes, Remove</button>
                             <button id="cancel-remove" class="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
@@ -235,7 +472,7 @@
                 document.getElementById('confirm-remove').addEventListener('click', () => {
                     itineraryData.splice(index, 1);
                     renderItinerary();
-                    renderMap();
+                    renderMap(); // Re-render map to show all main locations
                     document.body.removeChild(confirmationModal);
                 });
 
@@ -244,110 +481,203 @@
                 });
             }
 
-            function highlightItineraryItem(index) {
+            function removeItineraryEvent(dayIndex, eventIndex) {
+                const confirmationModal = document.createElement('div');
+                confirmationModal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-[10000]';
+                confirmationModal.innerHTML = `
+                    <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+                        <p class="text-lg font-semibold mb-4">Are you sure you want to remove this event?</p>
+                        <div class="flex justify-center space-x-4">
+                            <button id="confirm-remove" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Yes, Remove</button>
+                            <button id="cancel-remove" class="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(confirmationModal);
+
+                document.getElementById('confirm-remove').addEventListener('click', () => {
+                    itineraryData[dayIndex].events.splice(eventIndex, 1);
+                    renderDayEvents(dayIndex); // Re-render only the events for this day
+                    renderMap(dayIndex); // Update map with current day's events
+                    document.body.removeChild(confirmationModal);
+                });
+
+                document.getElementById('cancel-remove').addEventListener('click', () => {
+                    document.body.removeChild(confirmationModal);
+                });
+            }
+
+            function highlightItineraryItem(dayIndex, eventIndex = -1) {
                 document.querySelectorAll('#itinerary-list > div').forEach(div => div.classList.remove('highlight'));
-                const itemEl = document.getElementById(`item-${index}`);
-                if (itemEl) {
-                    itemEl.classList.add('highlight');
-                    itemEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                document.querySelectorAll('.day-details-panel div').forEach(div => div.classList.remove('highlight')); // Clear event highlights
+
+                const dayItemEl = document.getElementById(`day-item-${dayIndex}`);
+                if (dayItemEl) {
+                    dayItemEl.classList.add('highlight');
+                    dayItemEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Ensure the details panel for this day is open
+                    const detailsPanel = document.getElementById(`day-details-${dayIndex}`);
+                    if (!detailsPanel.classList.contains('active')) {
+                        detailsPanel.classList.add('active');
+                    }
+                }
+
+                if (eventIndex !== -1) {
+                    const eventEl = document.querySelector(`#events-list-${dayIndex} div:nth-child(${eventIndex + 1})`);
+                    if (eventEl) {
+                        eventEl.classList.add('highlight');
+                    }
                 }
             }
 
-            function renderMap() {
-                Object.values(markers).forEach(marker => map.removeLayer(marker));
-                if (window.polyline) map.removeLayer(window.polyline);
+            function renderMap(dayIndex = -1) {
+                Object.values(markers).forEach(marker => map.removeLayer(marker)); // Clear all existing markers
+                Object.keys(markers).forEach(key => delete markers[key]); // Clear markers object
 
-                const uniqueLocations = {};
-                itineraryData.forEach((item) => {
-                    if (!uniqueLocations[item.location]) {
-                        uniqueLocations[item.location] = {
-                            coords: item.coords,
-                            days: []
-                        };
-                    }
-                    uniqueLocations[item.location].days.push({ day: item.day, activity: item.activity });
-                });
-                
-                for (const loc in uniqueLocations) {
-                    const locationData = uniqueLocations[loc];
-                    const marker = L.marker(locationData.coords).addTo(map);
-                    let popupContent = `<h3>${loc}</h3>`;
-                    locationData.days.forEach(d => {
-                        popupContent += `<b>${d.day}:</b> ${d.activity}<br>`;
-                    });
-                    marker.bindPopup(popupContent);
-                    marker.on('click', () => {
-                        // Find the first index for this location to highlight in the list
-                        const firstIndex = itineraryData.findIndex(item => item.location === loc);
-                        if (firstIndex !== -1) {
-                            highlightItineraryItem(firstIndex);
+                let locationsToMap = [];
+
+                if (dayIndex !== -1 && itineraryData[dayIndex] && itineraryData[dayIndex].events) {
+                    // Map mode: show events for a specific day
+                    locationsToMap = itineraryData[dayIndex].events;
+                } else {
+                    // Default map mode: show main locations for all days
+                    itineraryData.forEach(dayItem => {
+                        // Use the first event's coords as the main location for the day if available, otherwise default to a general location.
+                        // For simplicity, I'm using the main location property if available, or the first event.
+                        if (dayItem.events && dayItem.events.length > 0) {
+                            locationsToMap.push({
+                                place: dayItem.location, // Use the main day location for the marker label
+                                coords: dayItem.events[0].coords, // Use first event's coords for marker position
+                                activity: dayItem.summary_activity // Use summary activity for popup
+                            });
                         }
                     });
-                    markers[loc] = marker;
                 }
+
+                locationsToMap.forEach((item, index) => {
+                    if (item.coords && item.coords.length === 2) {
+                        const marker = L.marker(item.coords).addTo(map);
+                        let popupContent = `<h3>${item.place}</h3>`;
+                        if (item.time) popupContent += `<b>Time:</b> ${item.time}<br>`;
+                        popupContent += `<b>Activity:</b> ${item.activity}<br>`;
+                        if (item.notes) popupContent += `<em>${item.notes}</em>`;
+
+                        marker.bindPopup(popupContent);
+                        marker.on('click', () => {
+                            // If we're in a specific day's view, highlight the event.
+                            // If in main view, highlight the day.
+                            if (dayIndex !== -1) {
+                                const eventIdx = itineraryData[dayIndex].events.findIndex(e => e.place === item.place && e.activity === item.activity);
+                                if (eventIdx !== -1) highlightItineraryItem(dayIndex, eventIdx);
+                            } else {
+                                const dayIdx = itineraryData.findIndex(d => d.location === item.place && d.summary_activity === item.activity);
+                                if (dayIdx !== -1) highlightItineraryItem(dayIdx);
+                            }
+                        });
+                        markers[item.place + (item.time || '') + index] = marker; // Unique key for marker
+                    }
+                });
             }
 
             saveBtn.addEventListener('click', () => {
-                if (currentEditIndex === -1) { // Add mode
+                if (isAddingNewDay) { // Add new day mode
                     const newDay = newDayInput.value.trim();
                     const newLocation = newLocationInput.value.trim();
-                    const newLat = parseFloat(newLatitudeInput.value);
-                    const newLon = parseFloat(newLongitudeInput.value);
-                    const newActivity = activityInput.value.trim();
-                    const newNotes = notesInput.value.trim();
+                    const newSummaryActivity = newSummaryActivityInput.value.trim();
 
-                    if (newDay && newLocation && !isNaN(newLat) && !isNaN(newLon) && newActivity) {
+                    if (newDay && newLocation && newSummaryActivity) {
                         itineraryData.push({
                             day: newDay,
                             location: newLocation,
-                            coords: [newLat, newLon],
-                            activity: newActivity,
-                            notes: newNotes
+                            summary_activity: newSummaryActivity,
+                            events: [] // New days start with no events
                         });
                         renderItinerary();
                         renderMap();
                         modal.style.display = 'none';
                     } else {
-                        // Using a custom modal for confirmation instead of alert() or confirm()
-                        const alertModal = document.createElement('div');
-                        alertModal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-[10000]';
-                        alertModal.innerHTML = `
-                            <div class="bg-white p-6 rounded-lg shadow-xl text-center">
-                                <p class="text-lg font-semibold mb-4">Please fill in all required fields (Day, Location, Activity, Latitude, Longitude).</p>
-                                <button id="close-alert" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">OK</button>
-                            </div>
-                        `;
-                        document.body.appendChild(alertModal);
-                        document.getElementById('close-alert').addEventListener('click', () => {
-                            document.body.removeChild(alertModal);
-                        });
+                        showCustomAlert("Please fill in all required fields for the new day (Day, Main Location, Summary Activity).");
                     }
-                } else { // Edit mode
-                    itineraryData[currentEditIndex].activity = activityInput.value;
-                    itineraryData[currentEditIndex].notes = notesInput.value;
+                } else if (currentEventIndex === -1) { // Edit existing day (not an event)
+                    const dayItem = itineraryData[currentDayIndex];
+                    dayItem.day = newDayInput.value.trim();
+                    dayItem.location = newLocationInput.value.trim();
+                    dayItem.summary_activity = newSummaryActivityInput.value.trim();
                     renderItinerary();
                     renderMap();
                     modal.style.display = 'none';
-                    currentEditIndex = -1;
+                    currentDayIndex = -1;
+                } else { // Add or Edit existing event
+                    const eventTime = eventTimeInput.value.trim();
+                    const eventPlace = eventPlaceInput.value.trim();
+                    const eventLat = parseFloat(eventLatitudeInput.value);
+                    const eventLon = parseFloat(eventLongitudeInput.value);
+                    const eventActivity = activityInput.value.trim();
+                    const eventNotes = notesInput.value.trim();
+
+                    if (eventTime && eventPlace && !isNaN(eventLat) && !isNaN(eventLon) && eventActivity) {
+                        if (currentEventIndex === -1) { // Add new event
+                            itineraryData[currentDayIndex].events.push({
+                                time: eventTime,
+                                place: eventPlace,
+                                coords: [eventLat, eventLon],
+                                activity: eventActivity,
+                                notes: eventNotes
+                            });
+                        } else { // Edit existing event
+                            const eventItem = itineraryData[currentDayIndex].events[currentEventIndex];
+                            eventItem.time = eventTime;
+                            eventItem.place = eventPlace;
+                            eventItem.coords = [eventLat, eventLon];
+                            eventItem.activity = eventActivity;
+                            eventItem.notes = eventNotes;
+                        }
+                        renderDayEvents(currentDayIndex); // Re-render events for the current day
+                        renderMap(currentDayIndex); // Update map for current day's events
+                        modal.style.display = 'none';
+                        currentDayIndex = -1;
+                        currentEventIndex = -1;
+                    } else {
+                        showCustomAlert("Please fill in all required fields for the event (Time, Place, Activity, Latitude, Longitude).");
+                    }
                 }
             });
 
             closeModalBtn.addEventListener('click', () => {
                 modal.style.display = 'none';
-                currentEditIndex = -1; // Reset to default
+                currentDayIndex = -1;
+                currentEventIndex = -1;
+                isAddingNewDay = false;
             });
 
             window.onclick = function(event) {
                 if (event.target == modal) {
                     modal.style.display = "none";
-                    currentEditIndex = -1; // Reset to default
+                    currentDayIndex = -1;
+                    currentEventIndex = -1;
+                    isAddingNewDay = false;
                 }
             }
 
             addItemBtn.addEventListener('click', openAddModal);
 
+            function showCustomAlert(message) {
+                const alertModal = document.createElement('div');
+                alertModal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-[10000]';
+                alertModal.innerHTML = `
+                    <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+                        <p class="text-lg font-semibold mb-4">${message}</p>
+                        <button id="close-alert" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">OK</button>
+                    </div>
+                `;
+                document.body.appendChild(alertModal);
+                document.getElementById('close-alert').addEventListener('click', () => {
+                    document.body.removeChild(alertModal);
+                });
+            }
+
             renderItinerary();
-            renderMap();
+            renderMap(); // Initial render of the map with all main locations
         });
     </script>
 </body>
