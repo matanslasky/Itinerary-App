@@ -252,7 +252,7 @@
 
             let currentDayIndex = -1; // Index of the day being viewed/edited
             let currentEventIndex = -1; // Index of the event within the day being edited (-1 for adding new event)
-            let isAddingNewDay = false; // Flag to distinguish adding a new day vs. adding/editing an event
+            let modalMode = ''; // 'add-day', 'edit-day', 'add-event', 'edit-event'
 
             const markers = {};
 
@@ -377,22 +377,20 @@
 
             function openEditDayModal(dayIndex) {
                 currentDayIndex = dayIndex;
-                currentEventIndex = -1; // Not editing an event
-                isAddingNewDay = false;
+                currentEventIndex = -1;
+                modalMode = 'edit-day';
 
                 const dayItem = itineraryData[currentDayIndex];
                 document.getElementById('modal-title').innerText = `Edit Day: ${dayItem.day} - ${dayItem.location}`;
 
-                // Hide event-specific fields
                 eventFields.classList.add('hidden');
-                // Show new-item-fields (for day-level edits)
                 newItemFields.classList.remove('hidden');
 
                 newDayInput.value = dayItem.day;
                 newLocationInput.value = dayItem.location;
                 newSummaryActivityInput.value = dayItem.summary_activity;
-                activityInput.value = ''; // Not applicable for day-level activity
-                notesInput.value = ''; // Not applicable for day-level notes
+                activityInput.value = '';
+                notesInput.value = '';
 
                 modal.style.display = 'block';
             }
@@ -400,14 +398,12 @@
             function openEditEventModal(dayIndex, eventIndex) {
                 currentDayIndex = dayIndex;
                 currentEventIndex = eventIndex;
-                isAddingNewDay = false;
+                modalMode = 'edit-event';
 
                 const eventItem = itineraryData[currentDayIndex].events[currentEventIndex];
                 document.getElementById('modal-title').innerText = `Edit Event: ${itineraryData[currentDayIndex].day} - ${eventItem.place}`;
 
-                // Show event-specific fields
                 eventFields.classList.remove('hidden');
-                // Hide new-item-fields
                 newItemFields.classList.add('hidden');
 
                 eventTimeInput.value = eventItem.time;
@@ -421,15 +417,13 @@
             }
 
             function openAddModal() { // For adding a new day
-                currentDayIndex = -1; // Indicates adding a new day
+                currentDayIndex = -1;
                 currentEventIndex = -1;
-                isAddingNewDay = true;
+                modalMode = 'add-day';
 
                 document.getElementById('modal-title').innerText = `Add New Itinerary Day`;
 
-                // Show new-item-fields (for day-level addition)
                 newItemFields.classList.remove('hidden');
-                // Hide event-specific fields
                 eventFields.classList.add('hidden');
 
                 newDayInput.value = '';
@@ -447,14 +441,12 @@
 
             function openAddEventModal(dayIndex) {
                 currentDayIndex = dayIndex;
-                currentEventIndex = -1; // Indicates adding a new event to an existing day
-                isAddingNewDay = false;
+                currentEventIndex = -1;
+                modalMode = 'add-event';
 
                 document.getElementById('modal-title').innerText = `Add Event to ${itineraryData[currentDayIndex].day}`;
 
-                // Show event-specific fields
                 eventFields.classList.remove('hidden');
-                // Hide new-item-fields
                 newItemFields.classList.add('hidden');
 
                 eventTimeInput.value = '';
@@ -601,45 +593,49 @@
             }
 
             saveBtn.addEventListener('click', () => {
-                if (isAddingNewDay) { // Add new day mode
-                    const newDay = newDayInput.value.trim();
-                    const newLocation = newLocationInput.value.trim();
-                    const newSummaryActivity = newSummaryActivityInput.value.trim();
+                const eventTime = eventTimeInput.value.trim();
+                const eventPlace = eventPlaceInput.value.trim();
+                const eventLat = parseFloat(eventLatitudeInput.value);
+                const eventLon = parseFloat(eventLongitudeInput.value);
+                const eventActivity = activityInput.value.trim();
+                const eventNotes = notesInput.value.trim();
+                const newDay = newDayInput.value.trim();
+                const newLocation = newLocationInput.value.trim();
+                const newSummaryActivity = newSummaryActivityInput.value.trim();
 
-                    if (newDay && newLocation && newSummaryActivity) {
-                        itineraryData.push({
-                            day: newDay,
-                            location: newLocation,
-                            summary_activity: newSummaryActivity,
-                            events: [] // New days start with no events
-                        });
-                        saveItinerary(); // Save changes to local storage
-                        renderItinerary();
-                        renderMap();
-                        modal.style.display = 'none';
-                    } else {
-                        showCustomAlert("Please fill in all required fields for the new day (Day, Main Location, Summary Activity).");
-                    }
-                } else if (currentEventIndex === -1) { // Edit existing day (not an event)
-                    const dayItem = itineraryData[currentDayIndex];
-                    dayItem.day = newDayInput.value.trim();
-                    dayItem.location = newLocationInput.value.trim();
-                    dayItem.summary_activity = newSummaryActivityInput.value.trim();
-                    saveItinerary(); // Save changes to local storage
-                    renderItinerary();
-                    renderMap();
-                    modal.style.display = 'none';
-                    currentDayIndex = -1;
-                } else { // Add or Edit existing event
-                    const eventTime = eventTimeInput.value.trim();
-                    const eventPlace = eventPlaceInput.value.trim();
-                    const eventLat = parseFloat(eventLatitudeInput.value);
-                    const eventLon = parseFloat(eventLongitudeInput.value);
-                    const eventActivity = activityInput.value.trim();
-                    const eventNotes = notesInput.value.trim();
-
-                    if (eventTime && eventPlace && !isNaN(eventLat) && !isNaN(eventLon) && eventActivity) {
-                        if (currentEventIndex === -1) { // Add new event
+                switch (modalMode) {
+                    case 'add-day':
+                        if (newDay && newLocation && newSummaryActivity) {
+                            itineraryData.push({
+                                day: newDay,
+                                location: newLocation,
+                                summary_activity: newSummaryActivity,
+                                events: []
+                            });
+                            saveItinerary();
+                            renderItinerary();
+                            renderMap();
+                            modal.style.display = 'none';
+                        } else {
+                            showCustomAlert("Please fill in all required fields for the new day (Day, Main Location, Summary Activity).");
+                        }
+                        break;
+                    case 'edit-day':
+                        if (newDay && newLocation && newSummaryActivity) {
+                            const dayItem = itineraryData[currentDayIndex];
+                            dayItem.day = newDay;
+                            dayItem.location = newLocation;
+                            dayItem.summary_activity = newSummaryActivity;
+                            saveItinerary();
+                            renderItinerary();
+                            renderMap();
+                            modal.style.display = 'none';
+                        } else {
+                            showCustomAlert("Please fill in all required fields for the day (Day, Main Location, Summary Activity).");
+                        }
+                        break;
+                    case 'add-event':
+                        if (eventTime && eventPlace && !isNaN(eventLat) && !isNaN(eventLon) && eventActivity) {
                             itineraryData[currentDayIndex].events.push({
                                 time: eventTime,
                                 place: eventPlace,
@@ -647,31 +643,42 @@
                                 activity: eventActivity,
                                 notes: eventNotes
                             });
-                        } else { // Edit existing event
+                            saveItinerary();
+                            renderDayEvents(currentDayIndex);
+                            renderMap(currentDayIndex);
+                            modal.style.display = 'none';
+                        } else {
+                            showCustomAlert("Please fill in all required fields for the event (Time, Place, Activity, Latitude, Longitude).");
+                        }
+                        break;
+                    case 'edit-event':
+                        if (eventTime && eventPlace && !isNaN(eventLat) && !isNaN(eventLon) && eventActivity) {
                             const eventItem = itineraryData[currentDayIndex].events[currentEventIndex];
                             eventItem.time = eventTime;
                             eventItem.place = eventPlace;
                             eventItem.coords = [eventLat, eventLon];
                             eventItem.activity = eventActivity;
                             eventItem.notes = eventNotes;
+                            saveItinerary();
+                            renderDayEvents(currentDayIndex);
+                            renderMap(currentDayIndex);
+                            modal.style.display = 'none';
+                        } else {
+                            showCustomAlert("Please fill in all required fields for the event (Time, Place, Activity, Latitude, Longitude).");
                         }
-                        saveItinerary(); // Save changes to local storage
-                        renderDayEvents(currentDayIndex); // Re-render events for the current day
-                        renderMap(currentDayIndex); // Update map for current day's events
-                        modal.style.display = 'none';
-                        currentDayIndex = -1;
-                        currentEventIndex = -1;
-                    } else {
-                        showCustomAlert("Please fill in all required fields for the event (Time, Place, Activity, Latitude, Longitude).");
-                    }
+                        break;
                 }
+                // Reset state variables after save
+                currentDayIndex = -1;
+                currentEventIndex = -1;
+                modalMode = '';
             });
 
             closeModalBtn.addEventListener('click', () => {
                 modal.style.display = 'none';
                 currentDayIndex = -1;
                 currentEventIndex = -1;
-                isAddingNewDay = false;
+                modalMode = '';
             });
 
             window.onclick = function(event) {
@@ -679,7 +686,7 @@
                     modal.style.display = "none";
                     currentDayIndex = -1;
                     currentEventIndex = -1;
-                    isAddingNewDay = false;
+                    modalMode = '';
                 }
             }
 
