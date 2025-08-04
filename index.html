@@ -123,7 +123,10 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const itineraryData = [
+            const LOCAL_STORAGE_KEY = 'travelItineraryData';
+
+            // Default itinerary data
+            const defaultItineraryData = [
                 { day: "Aug 21", location: "En Route", summary_activity: "Depart from Israel", events: [
                     { time: "13:40", place: "Israel", coords: [31.0461, 34.8516], activity: "Depart from Israel", notes: "Morning flight. Layover in Dubai (leaving around 3 AM)." }
                 ]},
@@ -221,6 +224,9 @@
                 ]}
             ];
 
+            // Load itinerary data from local storage, or use default if none exists
+            let itineraryData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY)) || defaultItineraryData;
+
             const map = L.map('map').setView([15, 105], 4);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -249,6 +255,11 @@
             let isAddingNewDay = false; // Flag to distinguish adding a new day vs. adding/editing an event
 
             const markers = {};
+
+            // Function to save itinerary data to local storage
+            function saveItinerary() {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(itineraryData));
+            }
 
             function renderItinerary() {
                 itineraryList.innerHTML = '';
@@ -306,9 +317,6 @@
                         openAddEventModal(parseInt(e.target.dataset.dayIndex, 10));
                     });
                 });
-
-                // Initially render all main locations on the map
-                renderMap();
             }
 
             function renderDayEvents(dayIndex) {
@@ -475,6 +483,7 @@
 
                 document.getElementById('confirm-remove').addEventListener('click', () => {
                     itineraryData.splice(index, 1);
+                    saveItinerary(); // Save changes to local storage
                     renderItinerary();
                     renderMap(); // Re-render map to show all main locations
                     document.body.removeChild(confirmationModal);
@@ -501,6 +510,7 @@
 
                 document.getElementById('confirm-remove').addEventListener('click', () => {
                     itineraryData[dayIndex].events.splice(eventIndex, 1);
+                    saveItinerary(); // Save changes to local storage
                     renderDayEvents(dayIndex); // Re-render only the events for this day
                     renderMap(dayIndex); // Update map with current day's events
                     document.body.removeChild(confirmationModal);
@@ -603,6 +613,7 @@
                             summary_activity: newSummaryActivity,
                             events: [] // New days start with no events
                         });
+                        saveItinerary(); // Save changes to local storage
                         renderItinerary();
                         renderMap();
                         modal.style.display = 'none';
@@ -614,6 +625,7 @@
                     dayItem.day = newDayInput.value.trim();
                     dayItem.location = newLocationInput.value.trim();
                     dayItem.summary_activity = newSummaryActivityInput.value.trim();
+                    saveItinerary(); // Save changes to local storage
                     renderItinerary();
                     renderMap();
                     modal.style.display = 'none';
@@ -643,6 +655,7 @@
                             eventItem.activity = eventActivity;
                             eventItem.notes = eventNotes;
                         }
+                        saveItinerary(); // Save changes to local storage
                         renderDayEvents(currentDayIndex); // Re-render events for the current day
                         renderMap(currentDayIndex); // Update map for current day's events
                         modal.style.display = 'none';
@@ -688,7 +701,16 @@
             }
 
             renderItinerary();
-            renderMap(); // Initial render of the map with all main locations
+            // Initial map load for Day 1 and open its details
+            if (itineraryData.length > 0) {
+                renderMap(0);
+                const firstDayDetailsPanel = document.getElementById(`day-details-0`);
+                if (firstDayDetailsPanel) {
+                    firstDayDetailsPanel.classList.add('active');
+                }
+            } else {
+                renderMap(); // Fallback to global view if no data
+            }
         });
     </script>
 </body>
