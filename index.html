@@ -54,10 +54,15 @@
         </div>
     </div>
 
-    <!-- Add New Item Button -->
-    <button id="add-item-btn" class="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full shadow-lg z-[9998]">
-        + Add New Day
-    </button>
+    <!-- Buttons for actions -->
+    <div class="fixed bottom-6 right-6 flex flex-col items-end space-y-4 md:flex-row md:space-y-0 md:space-x-4">
+        <button id="reset-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-full shadow-lg z-[9998]">
+            Reset Itinerary
+        </button>
+        <button id="add-item-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full shadow-lg z-[9998]">
+            + Add New Day
+        </button>
+    </div>
 
     <!-- Modal for Editing/Adding -->
     <div id="edit-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-[9999]">
@@ -243,6 +248,7 @@
             const newSummaryActivityInput = document.getElementById('new-summary-activity');
             const newItemFields = document.getElementById('new-item-fields');
             const addItemBtn = document.getElementById('add-item-btn');
+            const resetBtn = document.getElementById('reset-btn');
 
             const eventFields = document.getElementById('event-fields');
             const eventTimeInput = document.getElementById('event-time');
@@ -512,6 +518,35 @@
                     document.body.removeChild(confirmationModal);
                 });
             }
+            
+            // Function to reset the entire itinerary to its default state
+            function resetItinerary() {
+                const confirmationModal = document.createElement('div');
+                confirmationModal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-[10000]';
+                confirmationModal.innerHTML = `
+                    <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+                        <p class="text-lg font-semibold mb-4">Are you sure you want to reset the entire itinerary? This action cannot be undone.</p>
+                        <div class="flex justify-center space-x-4">
+                            <button id="confirm-reset" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Yes, Reset</button>
+                            <button id="cancel-reset" class="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">Cancel</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(confirmationModal);
+
+                document.getElementById('confirm-reset').addEventListener('click', () => {
+                    // Overwrite the current data with the default data
+                    itineraryData = JSON.parse(JSON.stringify(defaultItineraryData)); 
+                    saveItinerary(); // Save the default data to local storage
+                    renderItinerary(); // Re-render the UI
+                    renderMap(); // Reset the map view
+                    document.body.removeChild(confirmationModal);
+                });
+
+                document.getElementById('cancel-reset').addEventListener('click', () => {
+                    document.body.removeChild(confirmationModal);
+                });
+            }
 
             function highlightItineraryItem(dayIndex, eventIndex = -1) {
                 document.querySelectorAll('#itinerary-list > div').forEach(div => div.classList.remove('highlight'));
@@ -691,6 +726,7 @@
             }
 
             addItemBtn.addEventListener('click', openAddModal);
+            resetBtn.addEventListener('click', resetItinerary);
 
             function showCustomAlert(message) {
                 const alertModal = document.createElement('div');
